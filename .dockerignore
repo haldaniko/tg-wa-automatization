@@ -1,0 +1,15 @@
+.env
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+data
+sessions
+*.session
+*.session-journal
+.DS_Store
+Thumbs.db

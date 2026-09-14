@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+telethon>=1.45,<2
+httpx
+python-dotenv
+phonenumbers
