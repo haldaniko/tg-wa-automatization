@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import phonenumbers
@@ -31,13 +32,33 @@ def get_phone_from_lead(lead: dict[str, Any], preferred_field: str) -> str:
     )
 
 
-def normalize_phone(raw_phone: str, default_region: str) -> str:
+def normalize_phone(raw_phone: str) -> str:
+    international_phone = _to_international_phone(raw_phone)
     try:
-        parsed = phonenumbers.parse(raw_phone, default_region or None)
+        parsed = phonenumbers.parse(international_phone, None)
     except NumberParseException as exc:
         raise ValueError(f"Invalid phone number {raw_phone!r}: {exc}") from exc
 
     if not phonenumbers.is_possible_number(parsed) or not phonenumbers.is_valid_number(parsed):
-        raise ValueError(f"Invalid phone number {raw_phone!r}. Use +E.164 format if unsure.")
+        raise ValueError(
+            f"Invalid phone number {raw_phone!r}. Use an international number like +491701234567."
+        )
 
     return phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+
+
+def _to_international_phone(raw_phone: str) -> str:
+    phone = str(raw_phone).strip()
+    if not phone:
+        raise ValueError("Phone number is empty.")
+
+    if phone.startswith("+"):
+        return "+" + re.sub(r"\D", "", phone[1:])
+
+    digits = re.sub(r"\D", "", phone)
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if not digits:
+        raise ValueError(f"Invalid phone number {raw_phone!r}.")
+
+    return f"+{digits}"

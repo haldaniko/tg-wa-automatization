@@ -1,93 +1,173 @@
-# Настройка пайплайна Google Sheets -> OpenRouter -> Telegram
+# Пошаговый запуск проекта в Docker
 
-Документ описывает рабочую схему для этого проекта: новая строка в Google Sheets отправляется в локальное/серверное FastAPI-приложение, приложение генерирует сообщение через OpenRouter и отправляет его через ваш Telegram-аккаунт с помощью Telethon.
+Эта инструкция описывает production-развертку проекта через Docker Compose. Nginx настраивается отдельно на сервере как reverse proxy и не добавляется в Docker.
 
 ## 1. Что понадобится
 
-- Python 3.11+.
-- Аккаунт Telegram, который будет работать как юзербот.
+- Сервер с публичным IP и доменом, например `your-domain.example`.
+- Установленные `git`, `docker` и `docker compose`.
+- Аккаунт Telegram для userbot.
 - `api_id` и `api_hash` Telegram с https://my.telegram.org/apps.
 - API-ключ OpenRouter.
-- Google Sheet с заголовками в первой строке и колонкой телефона, например `phone` или `Телефон`.
-- Публичный HTTPS-адрес для приложения: VPS, Render/Fly/Railway, Cloudflare Tunnel, ngrok или другой туннель.
+- Google Sheet с заголовками в первой строке и колонкой телефона.
 
-Важно: отправляйте сообщения только лидам, которые дали согласие на связь. У Telegram есть лимиты и антиспам-механизмы; массовые холодные рассылки могут привести к ограничениям аккаунта. Поиск по телефону также сработает не всегда: у пользователя должен быть Telegram, и его настройки приватности должны позволять вашему аккаунту найти его по номеру.
+Важно: отправляйте сообщения только лидам, которые дали согласие на связь. У Telegram есть антиспам-ограничения, а поиск по номеру может не сработать, если у пользователя нет Telegram или приватность скрывает его аккаунт.
 
-## 2. Установка приложения
+## 2. Скачайте проект на сервер
 
-В папке проекта выполните:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.sample .env
+```bash
+git clone https://github.com/haldaniko/tg-wa-automatization.git
+cd tg-wa-automatization
 ```
 
-Откройте `.env` и заполните значения.
+## 3. Создайте `.env`
 
-Главные переменные:
-
-- `WEBHOOK_SECRET` - длинная случайная строка. Такое же значение будет в Google Apps Script.
-- `LEAD_PHONE_FIELD` - название колонки с телефоном в таблице, например `Телефон`.
-- `DEFAULT_PHONE_REGION` - страна для номеров без `+`, например `US`, `DE`.
-- `TELEGRAM_API_ID` и `TELEGRAM_API_HASH` - данные приложения Telegram.
-- `TELEGRAM_SESSION_NAME` - путь к session-файлу, обычно `sessions/userbot`.
-- `OPENROUTER_API_KEY` - ключ OpenRouter.
-- `OPENROUTER_MODEL` - модель OpenRouter.
-- `OPENROUTER_SYSTEM_PROMPT` и `OPENROUTER_USER_PROMPT` - инструкция для генерации сообщения.
-
-В `OPENROUTER_USER_PROMPT` можно использовать плейсхолдеры:
-
-- `{lead_json}` - данные строки таблицы как JSON.
-- `{payload_json}` - весь payload из Google Sheets.
-- `{phone}` - нормализованный телефон.
-- `{sheet_name}` - имя листа.
-- `{row_number}` - номер строки.
-
-## 3. Авторизация Telegram userbot
-
-В активированном виртуальном окружении запустите:
-
-```powershell
-python scripts/login_telegram.py
+```bash
+cp .env.sample .env
+nano .env
 ```
 
-Telethon попросит номер телефона, код из Telegram и, если включена двухфакторная защита, пароль. После успешной авторизации появится файл `sessions/userbot.session`. Не публикуйте его: это фактически доступ к вашему Telegram-аккаунту.
+Заполните основные переменные:
 
-## 4. Запуск сервиса
+```text
+WEBHOOK_SECRET=длинная-случайная-строка
+APP_HOST=0.0.0.0
+APP_PORT=8000
+DATABASE_PATH=/app/data/leads.sqlite3
+DRY_RUN=false
 
-Локально:
+LEAD_PHONE_FIELD=Телефон
 
-```powershell
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+TELEGRAM_API_ID=123456
+TELEGRAM_API_HASH=your_api_hash
+TELEGRAM_SESSION_NAME=/app/sessions/userbot
+TELEGRAM_SESSION_STRING=
+TELEGRAM_DELETE_IMPORTED_CONTACT=false
+
+OPENROUTER_API_KEY=sk-or-v1-your-key
+OPENROUTER_MODEL=~openai/gpt-sol-latest
+OPENROUTER_TEMPERATURE=0.7
+OPENROUTER_MAX_TOKENS=220
+OPENROUTER_HTTP_REFERER=https://your-domain.example
+OPENROUTER_APP_TITLE=Lead Telegram Userbot
+OPENROUTER_SYSTEM_PROMPT=You write short, warm, compliant first-touch sales messages. Do not invent facts. Do not mention that you are AI.
+OPENROUTER_USER_PROMPT=Сгенерируй короткое приветственное сообщение в Telegram для нового лида. Цель: поздороваться, представиться и предложить обсудить детали. Пиши на языке лида, если он понятен из данных. Не добавляй вымышленных скидок, сроков или обещаний. Данные лида: {lead_json}
 ```
 
-Проверка:
+`LEAD_PHONE_FIELD` должен совпадать с названием колонки телефона в Google Sheets. Телефоны должны быть в международном формате: `+491701234567` или `491701234567`. Если `+` отсутствует, приложение добавит его автоматически.
 
-```powershell
-Invoke-RestMethod http://localhost:8000/health
+## 4. Соберите Docker-образ
+
+```bash
+docker compose build
 ```
 
-Для Google нужен публичный HTTPS URL. Варианты:
+## 5. Авторизуйте Telegram userbot
 
-- VPS с Nginx/Caddy и TLS.
-- Cloudflare Tunnel.
-- ngrok для тестов.
-- Render/Fly/Railway или похожий хостинг.
+Перед первым запуском нужно создать Telegram session внутри Docker volume:
 
-Webhook endpoint:
+```bash
+docker compose run --rm app python scripts/login_telegram.py
+```
+
+Введите номер телефона Telegram-аккаунта, код из Telegram и 2FA-пароль, если он включен. Session сохранится в volume `telegram_sessions`. Не удаляйте этот volume без необходимости: в нем хранится доступ userbot к аккаунту.
+
+## 6. Запустите приложение
+
+```bash
+docker compose up -d
+```
+
+Проверьте контейнер:
+
+```bash
+docker compose ps
+curl http://127.0.0.1:8000/health
+```
+
+Ожидаемый ответ:
+
+```json
+{"status":"ok"}
+```
+
+Логи:
+
+```bash
+docker compose logs -f app
+```
+
+## 7. Настройте Nginx как reverse proxy
+
+Nginx должен стоять на сервере снаружи Docker и проксировать HTTPS-трафик на приложение, которое слушает локальный порт `8000`.
+
+Установите Nginx:
+
+```bash
+sudo apt update
+sudo apt install -y nginx
+```
+
+Создайте конфиг:
+
+```bash
+sudo nano /etc/nginx/sites-available/tg-wa-automatization
+```
+
+Пример конфига без TLS:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.example;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+Активируйте сайт:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/tg-wa-automatization /etc/nginx/sites-enabled/tg-wa-automatization
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Для Google Apps Script нужен HTTPS. Самый простой вариант - выпустить сертификат через Certbot:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.example
+```
+
+После выпуска сертификата проверьте:
+
+```bash
+curl https://your-domain.example/health
+```
+
+Webhook URL для Google Sheets:
 
 ```text
 https://your-domain.example/webhooks/google-sheets
 ```
 
-Для production-запуска в Docker используйте отдельную инструкцию: [DOCKER_PROD_RU.md](DOCKER_PROD_RU.md).
+## 8. Настройте Google Sheets Apps Script
 
-## 5. Настройка Google Sheets
-
-1. Откройте вашу Google таблицу.
-2. Выберите `Extensions` -> `Apps Script`.
+1. Откройте Google Sheets с лидами.
+2. Перейдите в `Extensions` -> `Apps Script`.
 3. Вставьте код из `google_apps_script/Code.gs`.
 4. Откройте `Project Settings` -> `Script properties`.
 5. Добавьте свойства:
@@ -100,55 +180,63 @@ STATUS_COLUMN_NAME=Webhook status
 START_ROW=2
 ```
 
-Если нужно использовать активный лист вместо конкретного имени, можно не задавать `SHEET_NAME`.
+Если нужно использовать активный лист, не задавайте `SHEET_NAME`.
 
-6. В редакторе Apps Script выберите функцию `installLeadWebhookTriggers` и нажмите `Run`.
-7. Разрешите доступы, которые попросит Google.
+6. В Apps Script выберите функцию `installLeadWebhookTriggers`.
+7. Нажмите `Run` и разрешите доступы.
 
-Скрипт создаст триггеры `onEdit`, `onChange` и таймер раз в минуту. Таймер нужен как страховка: некоторые интеграции добавляют строки не как обычное ручное редактирование. Apps Script отправляет только строки с пустой колонкой `Webhook status`; после попытки ставит `OK ...` или `ERR ...`. Чтобы повторить ошибочную строку, очистите статус в этой строке.
+Скрипт добавит колонку `Webhook status`, если ее нет. Новые строки с пустым статусом будут отправляться в webhook. После попытки скрипт запишет `OK ...` или `ERR ...`. Для повторной отправки строки очистите ее ячейку `Webhook status`.
 
-## 6. Формат строки в Google Sheets
+## 9. Проверьте весь пайплайн
 
-Первая строка должна содержать заголовки. Пример:
-
-```text
-name | phone | source | comment
-Ivan | +15551234567 | Instagram | interested in demo
-```
-
-Если колонка называется по-русски:
+Добавьте тестовую строку в Google Sheets:
 
 ```text
 Имя | Телефон | Источник | Комментарий
+Ivan | +15551234567 | Instagram | interested in demo
 ```
 
-тогда в `.env` укажите:
+Проверьте:
 
-```text
-LEAD_PHONE_FIELD=Телефон
-```
+- В Google Sheets появился статус `OK ...`.
+- В логах контейнера нет ошибок.
+- Telegram userbot отправил сообщение найденному пользователю.
 
-## 7. Тестовый режим
-
-Перед реальной отправкой можно включить:
+Если хотите протестировать генерацию без отправки в Telegram, временно поставьте:
 
 ```text
 DRY_RUN=true
 ```
 
-Сервис будет генерировать сообщение и записывать статус в SQLite, но не отправит его в Telegram. Для повторного реального теста после `DRY_RUN=false` удалите тестовую запись из `data/leads.sqlite3` или добавьте новую строку в таблицу.
+Затем перезапустите контейнер:
 
-## 8. Диагностика
+```bash
+docker compose up -d
+```
 
-- `401 Invalid webhook secret` - разные `WEBHOOK_SECRET` в `.env` и Apps Script.
-- `422 Phone number was not found` - неверный `LEAD_PHONE_FIELD` или пустая ячейка телефона.
-- `422 Invalid phone number` - номер не распознан; используйте международный формат `+...`.
-- `404 Telegram user was not found` - по этому телефону пользователь Telegram не найден или скрыт приватностью.
-- `502 OpenRouter HTTP ...` - ошибка ключа, модели, лимитов или баланса OpenRouter.
-- Строка в Sheets получила `ERR ...` - исправьте причину и очистите ячейку `Webhook status`, чтобы отправить повторно.
+## 10. Обновление проекта
 
-## 9. Использованные официальные источники
+```bash
+git pull
+docker compose build
+docker compose up -d
+```
 
-- OpenRouter: chat completions endpoint `https://openrouter.ai/api/v1/chat/completions`, заголовок `Authorization: Bearer ...`, параметры `model`, `messages`, `temperature`, `max_tokens`: https://openrouter.ai/docs/api-reference/chat-completion
-- Google Apps Script: installable triggers для Sheets и URL Fetch service: https://developers.google.com/apps-script/guides/triggers/installable и https://developers.google.com/apps-script/reference/url-fetch/url-fetch-app
-- Telethon: `TelegramClient` и `send_message`: https://docs.telethon.dev/en/stable/modules/client.html
+Volumes `lead_data` и `telegram_sessions` сохранятся между пересборками.
+
+## 11. Диагностика
+
+- `401 Invalid webhook secret` - `WEBHOOK_SECRET` отличается в `.env` и Apps Script.
+- `422 Phone number was not found` - неверный `LEAD_PHONE_FIELD` или пустая колонка телефона.
+- `422 Invalid phone number` - номер не распознан; используйте международный формат, например `+491701234567` или `491701234567`.
+- `404 Telegram user was not found` - пользователь не найден по номеру или скрыт настройками приватности.
+- `502 OpenRouter HTTP ...` - проблема с ключом, моделью, лимитами или балансом OpenRouter.
+- `Telegram session is not authorized` - повторите шаг авторизации через `docker compose run --rm app python scripts/login_telegram.py`.
+
+Остановить сервис:
+
+```bash
+docker compose down
+```
+
+Удалять volumes командой `docker compose down -v` стоит только если вы точно хотите стереть базу статусов и Telegram session.

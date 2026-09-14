@@ -67,7 +67,7 @@ async def google_sheets_webhook(request: Request) -> dict[str, Any]:
 
     try:
         raw_phone = get_phone_from_lead(lead, settings.lead_phone_field)
-        phone = normalize_phone(raw_phone, settings.default_phone_region)
+        phone = normalize_phone(raw_phone)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

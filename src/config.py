@@ -29,7 +29,6 @@ class Settings:
     database_path: Path
     dry_run: bool
     lead_phone_field: str
-    default_phone_region: str
     telegram_api_id: int
     telegram_api_hash: str
     telegram_session_name: str
@@ -55,7 +54,6 @@ def load_settings() -> Settings:
         database_path=Path(os.getenv("DATABASE_PATH", "data/leads.sqlite3")),
         dry_run=_bool("DRY_RUN", False),
         lead_phone_field=os.getenv("LEAD_PHONE_FIELD", "phone").strip(),
-        default_phone_region=os.getenv("DEFAULT_PHONE_REGION", "US").strip().upper(),
         telegram_api_id=int(_required("TELEGRAM_API_ID")),
         telegram_api_hash=_required("TELEGRAM_API_HASH"),
         telegram_session_name=os.getenv("TELEGRAM_SESSION_NAME", "sessions/userbot").strip(),
