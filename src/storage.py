@@ -26,12 +26,21 @@ class Storage:
                     message TEXT,
                     telegram_user_id INTEGER,
                     telegram_message_id INTEGER,
+                    whatsapp_message_id TEXT,
                     error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(lead_messages)").fetchall()
+            }
+            if "whatsapp_message_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE lead_messages ADD COLUMN whatsapp_message_id TEXT"
+                )
 
     def get(self, row_key: str) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -127,6 +136,29 @@ class Storage:
                 WHERE row_key = ?
                 """,
                 (phone, error[:2000], now, row_key),
+            )
+
+    def mark_whatsapp_sent(
+        self,
+        row_key: str,
+        phone: str,
+        message: str,
+        whatsapp_message_id: str | None,
+    ) -> None:
+        now = _now()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE lead_messages
+                SET phone = ?,
+                    status = 'sent',
+                    message = ?,
+                    whatsapp_message_id = ?,
+                    error = NULL,
+                    updated_at = ?
+                WHERE row_key = ?
+                """,
+                (phone, message, whatsapp_message_id, now, row_key),
             )
 
     def _connect(self) -> sqlite3.Connection:

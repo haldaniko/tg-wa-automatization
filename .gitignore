@@ -6,5 +6,6 @@ __pycache__/
 venv/
 data/
 sessions/
+whatsapp-service/.wwebjs_auth/
 *.session
 *.session-journal

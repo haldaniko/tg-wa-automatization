@@ -34,6 +34,8 @@ class Settings:
     telegram_session_name: str
     telegram_session_string: str
     telegram_delete_imported_contact: bool
+    whatsapp_service_url: str
+    whatsapp_api_token: str
     openrouter_api_key: str
     openrouter_model: str
     openrouter_temperature: float
@@ -42,6 +44,8 @@ class Settings:
     openrouter_app_title: str
     openrouter_system_prompt: str
     openrouter_user_prompt: str
+    openrouter_whatsapp_system_prompt: str
+    openrouter_whatsapp_user_prompt: str
 
 
 def load_settings() -> Settings:
@@ -59,6 +63,10 @@ def load_settings() -> Settings:
         telegram_session_name=os.getenv("TELEGRAM_SESSION_NAME", "sessions/userbot").strip(),
         telegram_session_string=os.getenv("TELEGRAM_SESSION_STRING", "").strip(),
         telegram_delete_imported_contact=_bool("TELEGRAM_DELETE_IMPORTED_CONTACT", False),
+        whatsapp_service_url=os.getenv(
+            "WHATSAPP_SERVICE_URL", "http://whatsapp:3000"
+        ).strip().rstrip("/"),
+        whatsapp_api_token=os.getenv("WHATSAPP_API_TOKEN", "").strip(),
         openrouter_api_key=_required("OPENROUTER_API_KEY"),
         openrouter_model=os.getenv("OPENROUTER_MODEL", "~openai/gpt-sol-latest").strip(),
         openrouter_temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.7")),
@@ -72,5 +80,13 @@ def load_settings() -> Settings:
         openrouter_user_prompt=os.getenv(
             "OPENROUTER_USER_PROMPT",
             "Create a short Telegram greeting for this lead: {lead_json}",
+        ).strip(),
+        openrouter_whatsapp_system_prompt=os.getenv(
+            "OPENROUTER_WHATSAPP_SYSTEM_PROMPT",
+            "You write short, warm first-touch WhatsApp messages.",
+        ).strip(),
+        openrouter_whatsapp_user_prompt=os.getenv(
+            "OPENROUTER_WHATSAPP_USER_PROMPT",
+            "Create a short WhatsApp greeting for this lead: {lead_json}",
         ).strip(),
     )

@@ -21,8 +21,20 @@ class OpenRouterClient:
         lead: dict[str, Any],
         payload: dict[str, Any],
         phone: str,
+        *,
+        system_prompt: str | None = None,
+        user_prompt: str | None = None,
     ) -> str:
-        user_prompt = self._render_prompt(lead=lead, payload=payload, phone=phone)
+        rendered_user_prompt = self._render_prompt(
+            lead=lead,
+            payload=payload,
+            phone=phone,
+            prompt=(
+                user_prompt
+                if user_prompt is not None
+                else self.settings.openrouter_user_prompt
+            ),
+        )
         headers = {
             "Authorization": f"Bearer {self.settings.openrouter_api_key}",
             "Content-Type": "application/json",
@@ -42,9 +54,13 @@ class OpenRouterClient:
                 "messages": [
                     {
                         "role": "system",
-                        "content": self.settings.openrouter_system_prompt,
+                        "content": (
+                            system_prompt
+                            if system_prompt is not None
+                            else self.settings.openrouter_system_prompt
+                        ),
                     },
-                    {"role": "user", "content": user_prompt},
+                    {"role": "user", "content": rendered_user_prompt},
                 ],
             },
         )
@@ -65,10 +81,10 @@ class OpenRouterClient:
         lead: dict[str, Any],
         payload: dict[str, Any],
         phone: str,
+        prompt: str,
     ) -> str:
         lead_json = json.dumps(lead, ensure_ascii=False, indent=2)
         payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
-        prompt = self.settings.openrouter_user_prompt
         replacements = {
             "{lead_json}": lead_json,
             "{payload_json}": payload_json,
