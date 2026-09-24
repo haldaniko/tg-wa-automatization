@@ -14,7 +14,7 @@ services:
       TELEGRAM_SESSION_NAME: /app/sessions/userbot
       WHATSAPP_SERVICE_URL: http://whatsapp:3000
     ports:
-      - "8000:8000"
+      - "8017:8000"
     volumes:
       - lead_data:/app/data
       - telegram_sessions:/app/sessions
