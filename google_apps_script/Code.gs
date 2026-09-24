@@ -3,7 +3,8 @@ const DEFAULT_WHATSAPP_STATUS_COLUMN_NAME = 'WhatsApp status';
 const DEFAULT_WORKING_HOURS_TIMEZONE = 'Europe/Sofia';
 const DEFAULT_WORKING_HOURS_START_HOUR = 8;
 const DEFAULT_WORKING_HOURS_END_HOUR = 18;
-const MAX_ROWS_PER_RUN = 20;
+const DEFAULT_SEND_INTERVAL_MINUTES = 3;
+const LAST_MESSAGE_SENT_AT_PROPERTY = 'LAST_MESSAGE_SENT_AT';
 
 function installLeadWebhookTriggers() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -102,6 +103,10 @@ function syncNewLeadsLocked_() {
     return;
   }
 
+  if (!canSendNow_(props)) {
+    return;
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = sheetName ? ss.getSheetByName(sheetName) : ss.getActiveSheet();
   if (!sheet) {
@@ -126,8 +131,7 @@ function syncNewLeadsLocked_() {
   const finalLastColumn = sheet.getLastColumn();
   const finalHeaders = sheet.getRange(1, 1, 1, finalLastColumn).getValues()[0].map(String);
 
-  let processed = 0;
-  for (let row = startRow; row <= lastRow && processed < MAX_ROWS_PER_RUN; row += 1) {
+  for (let row = startRow; row <= lastRow; row += 1) {
     const telegramStatus = String(sheet.getRange(row, statusColumn).getValue() || '').trim();
     const whatsappStatus = whatsappStatusColumn
       ? String(sheet.getRange(row, whatsappStatusColumn).getValue() || '').trim()
@@ -163,19 +167,17 @@ function syncNewLeadsLocked_() {
       lead: lead,
     };
 
-    let rowProcessed = false;
     if (telegramPending) {
       const result = postLead_(webhookUrl, webhookSecret, payload);
       sheet.getRange(row, statusColumn).setValue(result.statusText);
-      rowProcessed = true;
+      markMessageSent_(props);
+      return;
     }
     if (whatsappPending) {
       const result = postLead_(whatsappWebhookUrl, webhookSecret, payload);
       sheet.getRange(row, whatsappStatusColumn).setValue(result.statusText);
-      rowProcessed = true;
-    }
-    if (rowProcessed) {
-      processed += 1;
+      markMessageSent_(props);
+      return;
     }
   }
 }
@@ -241,4 +243,34 @@ function parseHour_(value, fallback) {
     return fallback;
   }
   return Math.floor(hour);
+}
+
+function canSendNow_(props) {
+  const intervalMinutes = parsePositiveNumber_(
+    props.getProperty('SEND_INTERVAL_MINUTES'),
+    DEFAULT_SEND_INTERVAL_MINUTES
+  );
+  const lastSentAt = props.getProperty(LAST_MESSAGE_SENT_AT_PROPERTY);
+  if (!lastSentAt) {
+    return true;
+  }
+
+  const lastSentTime = Date.parse(lastSentAt);
+  if (!Number.isFinite(lastSentTime)) {
+    return true;
+  }
+
+  return Date.now() - lastSentTime >= intervalMinutes * 60 * 1000;
+}
+
+function markMessageSent_(props) {
+  props.setProperty(LAST_MESSAGE_SENT_AT_PROPERTY, new Date().toISOString());
+}
+
+function parsePositiveNumber_(value, fallback) {
+  const number = Number(value || fallback);
+  if (!Number.isFinite(number) || number <= 0) {
+    return fallback;
+  }
+  return number;
 }
