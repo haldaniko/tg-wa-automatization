@@ -2,6 +2,8 @@
 
 const crypto = require("crypto");
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const qrcode = require("qrcode-terminal");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 
@@ -14,6 +16,8 @@ if (!apiToken) {
   throw new Error("WHATSAPP_API_TOKEN is required.");
 }
 
+removeChromiumProfileLocks(sessionPath);
+
 let state = "initializing";
 let sendQueue = Promise.resolve();
 
@@ -21,12 +25,15 @@ const client = new Client({
   authStrategy: new LocalAuth({ clientId, dataPath: sessionPath }),
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
-    headless: true,
+    headless: "new",
     args: [
+      "--headless=new",
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
       "--disable-gpu",
+      "--no-first-run",
+      "--no-default-browser-check",
     ],
   },
 });
@@ -125,6 +132,39 @@ function enqueueSend(operation) {
   const current = sendQueue.then(operation, operation);
   sendQueue = current.catch(() => undefined);
   return current;
+}
+
+function removeChromiumProfileLocks(rootPath) {
+  if (!fs.existsSync(rootPath)) {
+    return;
+  }
+
+  const stack = [rootPath];
+  while (stack.length > 0) {
+    const currentPath = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(entryPath);
+        continue;
+      }
+      if (entry.name.startsWith("Singleton")) {
+        try {
+          fs.rmSync(entryPath, { force: true });
+          console.log(`Removed stale Chromium profile lock: ${entryPath}`);
+        } catch (error) {
+          console.warn(`Could not remove Chromium profile lock ${entryPath}:`, error);
+        }
+      }
+    }
+  }
 }
 
 const server = app.listen(port, "0.0.0.0", () => {

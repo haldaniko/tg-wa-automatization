@@ -193,6 +193,9 @@ SHEET_NAME=Leads
 STATUS_COLUMN_NAME=Webhook status
 WHATSAPP_STATUS_COLUMN_NAME=WhatsApp status
 START_ROW=2
+WORKING_HOURS_TIMEZONE=Europe/Sofia
+WORKING_HOURS_START_HOUR=8
+WORKING_HOURS_END_HOUR=18
 ```
 
 Если нужно использовать активный лист, не задавайте `SHEET_NAME`.
@@ -200,7 +203,7 @@ START_ROW=2
 6. Выберите функцию `installLeadWebhookTriggers`.
 7. Нажмите `Run` и подтвердите доступы.
 
-Скрипт создаст две колонки статусов и будет отправлять каждую новую строку в Telegram и WhatsApp. Для повторной отправки очистите статус нужного канала.
+Скрипт создаст две колонки статусов и будет отправлять каждую новую строку в Telegram и WhatsApp только с 08:00 до 18:00 по болгарскому времени. Если лид появился в нерабочее время, статусы останутся пустыми, а time-based trigger отправит сообщения утром после 08:00. Для повторной отправки очистите статус нужного канала.
 
 ## 9. Проверьте отправку
 

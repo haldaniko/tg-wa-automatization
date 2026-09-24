@@ -1,5 +1,8 @@
 const DEFAULT_STATUS_COLUMN_NAME = 'Webhook status';
 const DEFAULT_WHATSAPP_STATUS_COLUMN_NAME = 'WhatsApp status';
+const DEFAULT_WORKING_HOURS_TIMEZONE = 'Europe/Sofia';
+const DEFAULT_WORKING_HOURS_START_HOUR = 8;
+const DEFAULT_WORKING_HOURS_END_HOUR = 18;
 const MAX_ROWS_PER_RUN = 20;
 
 function installLeadWebhookTriggers() {
@@ -93,6 +96,10 @@ function syncNewLeadsLocked_() {
 
   if (!webhookUrl || !webhookSecret) {
     throw new Error('Set WEBHOOK_URL and WEBHOOK_SECRET in Script properties first.');
+  }
+
+  if (!isWithinWorkingHours_(props)) {
+    return;
   }
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -204,4 +211,34 @@ function ensureStatusColumn_(sheet, headers, statusColumnName) {
   const newColumn = headers.length + 1;
   sheet.getRange(1, newColumn).setValue(statusColumnName);
   return newColumn;
+}
+
+function isWithinWorkingHours_(props) {
+  const timezone =
+    props.getProperty('WORKING_HOURS_TIMEZONE') || DEFAULT_WORKING_HOURS_TIMEZONE;
+  const startHour = parseHour_(
+    props.getProperty('WORKING_HOURS_START_HOUR'),
+    DEFAULT_WORKING_HOURS_START_HOUR
+  );
+  const endHour = parseHour_(
+    props.getProperty('WORKING_HOURS_END_HOUR'),
+    DEFAULT_WORKING_HOURS_END_HOUR
+  );
+  const currentHour = Number(Utilities.formatDate(new Date(), timezone, 'H'));
+
+  if (startHour === endHour) {
+    return true;
+  }
+  if (startHour < endHour) {
+    return currentHour >= startHour && currentHour < endHour;
+  }
+  return currentHour >= startHour || currentHour < endHour;
+}
+
+function parseHour_(value, fallback) {
+  const hour = Number(value || fallback);
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
+    return fallback;
+  }
+  return Math.floor(hour);
 }
