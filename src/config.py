@@ -51,6 +51,15 @@ class Settings:
 def load_settings() -> Settings:
     load_dotenv()
 
+    openrouter_system_prompt = os.getenv(
+        "OPENROUTER_SYSTEM_PROMPT",
+        "You write short, warm first-touch messages.",
+    ).strip()
+    openrouter_user_prompt = os.getenv(
+        "OPENROUTER_USER_PROMPT",
+        "Create a short greeting for this lead: {lead_json}",
+    ).strip()
+
     return Settings(
         webhook_secret=_required("WEBHOOK_SECRET"),
         app_host=os.getenv("APP_HOST", "0.0.0.0"),
@@ -72,21 +81,15 @@ def load_settings() -> Settings:
         openrouter_temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.7")),
         openrouter_max_tokens=int(os.getenv("OPENROUTER_MAX_TOKENS", "220")),
         openrouter_http_referer=os.getenv("OPENROUTER_HTTP_REFERER", "").strip(),
-        openrouter_app_title=os.getenv("OPENROUTER_APP_TITLE", "Lead Telegram Userbot").strip(),
-        openrouter_system_prompt=os.getenv(
-            "OPENROUTER_SYSTEM_PROMPT",
-            "You write short, warm first-touch Telegram messages.",
-        ).strip(),
-        openrouter_user_prompt=os.getenv(
-            "OPENROUTER_USER_PROMPT",
-            "Create a short Telegram greeting for this lead: {lead_json}",
-        ).strip(),
+        openrouter_app_title=os.getenv("OPENROUTER_APP_TITLE", "Lead Messenger Bot").strip(),
+        openrouter_system_prompt=openrouter_system_prompt,
+        openrouter_user_prompt=openrouter_user_prompt,
         openrouter_whatsapp_system_prompt=os.getenv(
             "OPENROUTER_WHATSAPP_SYSTEM_PROMPT",
-            "You write short, warm first-touch WhatsApp messages.",
+            openrouter_system_prompt,
         ).strip(),
         openrouter_whatsapp_user_prompt=os.getenv(
             "OPENROUTER_WHATSAPP_USER_PROMPT",
-            "Create a short WhatsApp greeting for this lead: {lead_json}",
+            openrouter_user_prompt,
         ).strip(),
     )

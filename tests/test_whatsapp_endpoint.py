@@ -26,7 +26,7 @@ class WhatsAppWebhookTest(unittest.TestCase):
             "lead": {"phone": "+380972964484", "name": "Test"},
         }
 
-        with tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             os.environ["DATABASE_PATH"] = str(Path(temp_dir) / "leads.sqlite3")
             generate_message = AsyncMock(return_value="WhatsApp test message")
             with patch.object(
@@ -51,6 +51,10 @@ class WhatsAppWebhookTest(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(second.json()["status"], "duplicate")
         self.assertEqual(generate_message.await_count, 1)
+        self.assertEqual(
+            main.services.settings.openrouter_whatsapp_user_prompt,
+            main.services.settings.openrouter_user_prompt,
+        )
         self.assertEqual(
             generate_message.await_args.kwargs["user_prompt"],
             main.services.settings.openrouter_whatsapp_user_prompt,

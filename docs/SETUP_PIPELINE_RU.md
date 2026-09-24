@@ -1,19 +1,22 @@
-# Пошаговый запуск проекта в Docker
+# Развертка Telegram + WhatsApp
 
-Эта инструкция описывает production-развертку проекта через Docker Compose. Nginx настраивается отдельно на сервере как reverse proxy и не добавляется в Docker.
+Минимальная production-инструкция для запуска проекта через Docker Compose. Nginx работает на сервере отдельно от Docker и проксирует HTTPS-запросы в FastAPI.
 
-## 1. Что понадобится
+## 1. Подготовьте данные
 
-- Сервер с публичным IP и доменом, например `your-domain.example`.
-- Установленные `git`, `docker` и `docker compose`.
-- Аккаунт Telegram для userbot.
-- `api_id` и `api_hash` Telegram с https://my.telegram.org/apps.
-- API-ключ OpenRouter.
-- Google Sheet с заголовками в первой строке и колонкой телефона.
+Нужны:
 
-Важно: отправляйте сообщения только лидам, которые дали согласие на связь. У Telegram есть антиспам-ограничения, а поиск по номеру может не сработать, если у пользователя нет Telegram или приватность скрывает его аккаунт.
+- сервер с доменом;
+- `git`, `docker`, `docker compose`;
+- Telegram-аккаунт для userbot;
+- `api_id` и `api_hash` с https://my.telegram.org/apps;
+- рабочий WhatsApp-номер;
+- API-ключ OpenRouter;
+- Google Sheet с первой строкой-заголовками и колонкой телефона.
 
-## 2. Скачайте проект на сервер
+Пишите только лидам, которые дали согласие на связь. WhatsApp работает через неофициальную автоматизацию WhatsApp Web, поэтому используйте отдельный рабочий номер и не запускайте массовую рассылку.
+
+## 2. Скачайте проект
 
 ```bash
 git clone https://github.com/haldaniko/tg-wa-automatization.git
@@ -24,10 +27,12 @@ cd tg-wa-automatization
 
 ```bash
 cp .env.sample .env
+openssl rand -hex 32
+openssl rand -hex 32
 nano .env
 ```
 
-Заполните основные переменные:
+Заполните значения. Первую случайную строку используйте для `WEBHOOK_SECRET`, вторую - для `WHATSAPP_API_TOKEN`:
 
 ```text
 WEBHOOK_SECRET=длинная-случайная-строка
@@ -44,45 +49,41 @@ TELEGRAM_SESSION_NAME=/app/sessions/userbot
 TELEGRAM_SESSION_STRING=
 TELEGRAM_DELETE_IMPORTED_CONTACT=false
 
+WHATSAPP_API_TOKEN=другая-длинная-случайная-строка
+WHATSAPP_SERVICE_URL=http://whatsapp:3000
+WHATSAPP_CLIENT_ID=leads
+WHATSAPP_SESSION_PATH=/app/session
+
 OPENROUTER_API_KEY=sk-or-v1-your-key
 OPENROUTER_MODEL=~openai/gpt-sol-latest
 OPENROUTER_TEMPERATURE=0.7
 OPENROUTER_MAX_TOKENS=220
 OPENROUTER_HTTP_REFERER=https://your-domain.example
-OPENROUTER_APP_TITLE=Lead Telegram Userbot
+OPENROUTER_APP_TITLE=Lead Messenger Bot
+
 OPENROUTER_SYSTEM_PROMPT=You write short, warm, compliant first-touch sales messages. Do not invent facts. Do not mention that you are AI.
-OPENROUTER_USER_PROMPT=Сгенерируй короткое приветственное сообщение в Telegram для нового лида. Цель: поздороваться, представиться и предложить обсудить детали. Пиши на языке лида, если он понятен из данных. Не добавляй вымышленных скидок, сроков или обещаний. Данные лида: {lead_json}
+OPENROUTER_USER_PROMPT=Сгенерируй короткое приветственное сообщение в мессенджере для нового лида. Пиши на языке лида, если он понятен из данных. Не добавляй вымышленных скидок, сроков или обещаний. Данные лида: {lead_json}
 ```
 
-`LEAD_PHONE_FIELD` должен совпадать с названием колонки телефона в Google Sheets. Телефоны должны быть в международном формате: `+491701234567` или `491701234567`. Если `+` отсутствует, приложение добавит его автоматически.
+`LEAD_PHONE_FIELD` должен совпадать с названием колонки телефона в Google Sheets. Телефоны указывайте в международном формате: `+491701234567` или `491701234567`.
 
-## 4. Соберите Docker-образ
+Если для WhatsApp нужны отдельные правила, можно дополнительно задать `OPENROUTER_WHATSAPP_SYSTEM_PROMPT` и `OPENROUTER_WHATSAPP_USER_PROMPT`. Если их нет, WhatsApp использует общие `OPENROUTER_SYSTEM_PROMPT` и `OPENROUTER_USER_PROMPT`.
+
+## 4. Авторизуйте Telegram
 
 ```bash
-docker compose build
+docker compose --profile whatsapp build
+docker compose --profile whatsapp run --rm app python scripts/login_telegram.py
 ```
 
-## 5. Авторизуйте Telegram userbot
+Введите номер Telegram-аккаунта, код из Telegram и 2FA-пароль, если он включен. Сессия сохранится в volume `telegram_sessions`.
 
-Перед первым запуском нужно создать Telegram session внутри Docker volume:
-
-```bash
-docker compose run --rm app python scripts/login_telegram.py
-```
-
-Введите номер телефона Telegram-аккаунта, код из Telegram и 2FA-пароль, если он включен. Session сохранится в volume `telegram_sessions`. Не удаляйте этот volume без необходимости: в нем хранится доступ userbot к аккаунту.
-
-## 6. Запустите приложение
+## 5. Запустите проект
 
 ```bash
-docker compose up -d
-```
-
-Проверьте контейнер:
-
-```bash
-docker compose ps
-curl http://127.0.0.1:8000/health
+docker compose --profile whatsapp up -d
+docker compose --profile whatsapp ps
+curl http://127.0.0.1:8017/health
 ```
 
 Ожидаемый ответ:
@@ -91,80 +92,92 @@ curl http://127.0.0.1:8000/health
 {"status":"ok"}
 ```
 
-Логи:
+## 6. Авторизуйте WhatsApp
 
 ```bash
-docker compose logs -f app
+docker compose --profile whatsapp logs -f whatsapp
 ```
 
-## 7. Настройте Nginx как reverse proxy
+Отсканируйте QR-код в WhatsApp: `Настройки` -> `Связанные устройства` -> `Привязка устройства`.
 
-Nginx должен стоять на сервере снаружи Docker и проксировать HTTPS-трафик на приложение, которое слушает локальный порт `8000`.
+После успешного входа в логах появится:
 
-Установите Nginx:
+```text
+WhatsApp bridge is ready.
+```
+
+Остановите просмотр логов через `Ctrl+C`. Контейнер продолжит работать. Сессия сохранится в volume `whatsapp_sessions`.
+
+Проверка:
+
+```bash
+docker compose --profile whatsapp exec whatsapp node -e "fetch('http://127.0.0.1:3000/health').then(r => r.text()).then(console.log)"
+```
+
+В ответе должно быть `"status":"ready"` и `"ready":true`.
+
+## 7. Настройте Nginx и HTTPS
 
 ```bash
 sudo apt update
-sudo apt install -y nginx
-```
-
-Создайте конфиг:
-
-```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
 sudo nano /etc/nginx/sites-available/tg-wa-automatization
 ```
 
-Пример конфига без TLS:
+Конфиг:
 
 ```nginx
 server {
     listen 80;
     server_name your-domain.example;
 
-    location / {
-        proxy_pass http://127.0.0.1:8000;
+    location = /webhooks/google-sheets {
+        proxy_pass http://127.0.0.1:8017;
         proxy_http_version 1.1;
-
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 60s;
         proxy_read_timeout 60s;
+    }
+
+    location = /webhooks/google-sheets/whatsapp {
+        proxy_pass http://127.0.0.1:8017;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8017;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
-
-Активируйте сайт:
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/tg-wa-automatization /etc/nginx/sites-enabled/tg-wa-automatization
 sudo nginx -t
 sudo systemctl reload nginx
-```
-
-Для Google Apps Script нужен HTTPS. Самый простой вариант - выпустить сертификат через Certbot:
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.example
-```
-
-После выпуска сертификата проверьте:
-
-```bash
 curl https://your-domain.example/health
 ```
 
-Webhook URL для Google Sheets:
+Webhook URLs:
 
 ```text
 https://your-domain.example/webhooks/google-sheets
+https://your-domain.example/webhooks/google-sheets/whatsapp
 ```
 
-## 8. Настройте Google Sheets Apps Script
+## 8. Настройте Google Sheets
 
 1. Откройте Google Sheets с лидами.
 2. Перейдите в `Extensions` -> `Apps Script`.
@@ -174,22 +187,24 @@ https://your-domain.example/webhooks/google-sheets
 
 ```text
 WEBHOOK_URL=https://your-domain.example/webhooks/google-sheets
+WHATSAPP_WEBHOOK_URL=https://your-domain.example/webhooks/google-sheets/whatsapp
 WEBHOOK_SECRET=то-же-значение-что-в-.env
 SHEET_NAME=Leads
 STATUS_COLUMN_NAME=Webhook status
+WHATSAPP_STATUS_COLUMN_NAME=WhatsApp status
 START_ROW=2
 ```
 
 Если нужно использовать активный лист, не задавайте `SHEET_NAME`.
 
-6. В Apps Script выберите функцию `installLeadWebhookTriggers`.
-7. Нажмите `Run` и разрешите доступы.
+6. Выберите функцию `installLeadWebhookTriggers`.
+7. Нажмите `Run` и подтвердите доступы.
 
-Скрипт добавит колонку `Webhook status`, если ее нет. Новые строки с пустым статусом будут отправляться в webhook. После попытки скрипт запишет `OK ...` или `ERR ...`. Для повторной отправки строки очистите ее ячейку `Webhook status`.
+Скрипт создаст две колонки статусов и будет отправлять каждую новую строку в Telegram и WhatsApp. Для повторной отправки очистите статус нужного канала.
 
-## 9. Проверьте весь пайплайн
+## 9. Проверьте отправку
 
-Добавьте тестовую строку в Google Sheets:
+Добавьте новую строку с тестовым номером, владелец которого согласен получить сообщение:
 
 ```text
 Имя | Телефон | Источник | Комментарий
@@ -198,45 +213,38 @@ Ivan | +15551234567 | Instagram | interested in demo
 
 Проверьте:
 
-- В Google Sheets появился статус `OK ...`.
-- В логах контейнера нет ошибок.
-- Telegram userbot отправил сообщение найденному пользователю.
-
-Если хотите протестировать генерацию без отправки в Telegram, временно поставьте:
-
-```text
-DRY_RUN=true
-```
-
-Затем перезапустите контейнер:
+- в `Webhook status` появился `OK ...`;
+- в `WhatsApp status` появился `OK ...`;
+- сообщения ушли в Telegram и WhatsApp;
+- в логах нет ошибок.
 
 ```bash
-docker compose up -d
+docker compose --profile whatsapp logs --tail=200 app whatsapp
 ```
 
-## 10. Обновление проекта
+## 10. Обновление
 
 ```bash
 git pull
-docker compose build
-docker compose up -d
+docker compose --profile whatsapp build
+docker compose --profile whatsapp up -d
 ```
 
-Volumes `lead_data` и `telegram_sessions` сохранятся между пересборками.
+Volumes `lead_data`, `telegram_sessions` и `whatsapp_sessions` сохраняются между пересборками. Не используйте `docker compose down -v`, если не хотите удалить базу статусов и обе сессии.
 
 ## 11. Диагностика
 
 - `401 Invalid webhook secret` - `WEBHOOK_SECRET` отличается в `.env` и Apps Script.
 - `422 Phone number was not found` - неверный `LEAD_PHONE_FIELD` или пустая колонка телефона.
-- `422 Invalid phone number` - номер не распознан; используйте международный формат, например `+491701234567` или `491701234567`.
 - `404 Telegram user was not found` - пользователь не найден по номеру или скрыт настройками приватности.
+- `503 WhatsApp is not ready` - откройте логи `whatsapp` и отсканируйте новый QR-код.
+- `404 No WhatsApp account was found` - на номере нет WhatsApp или номер неверен.
+- `401 Invalid API token` - `WHATSAPP_API_TOKEN` не совпадает в `app` и `whatsapp`; выполните `docker compose --profile whatsapp up -d --force-recreate`.
 - `502 OpenRouter HTTP ...` - проблема с ключом, моделью, лимитами или балансом OpenRouter.
-- `Telegram session is not authorized` - повторите шаг авторизации через `docker compose run --rm app python scripts/login_telegram.py`.
+- `ERR ...` в таблице - исправьте причину и очистите статус нужного канала.
 
-Остановить сервис:
+Остановить сервисы:
 
 ```bash
-docker compose down
+docker compose --profile whatsapp down
 ```
-
-Удалять volumes командой `docker compose down -v` стоит только если вы точно хотите стереть базу статусов и Telegram session.

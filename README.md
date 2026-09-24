@@ -9,6 +9,4 @@
 5. WhatsApp Web-сервис отправляет сообщение по тому же международному номеру.
 6. SQLite хранит независимые статусы каналов, чтобы не отправлять сообщения дважды.
 
-Единая пошаговая инструкция по production-запуску через Docker: [docs/SETUP_PIPELINE_RU.md](docs/SETUP_PIPELINE_RU.md).
-
-После настройки Telegram подключите WhatsApp по отдельной инструкции: [docs/SETUP_WHATSAPP_RU.md](docs/SETUP_WHATSAPP_RU.md).
+Единая пошаговая инструкция по production-запуску Telegram и WhatsApp через Docker: [docs/SETUP_PIPELINE_RU.md](docs/SETUP_PIPELINE_RU.md).
