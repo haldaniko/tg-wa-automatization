@@ -74,6 +74,7 @@ function markExistingRowsSkippedForWhatsApp() {
 function syncNewLeads() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) {
+    console.log('Another syncNewLeads execution is already running.');
     return;
   }
 
@@ -94,16 +95,20 @@ function syncNewLeadsLocked_() {
   const whatsappStatusColumnName =
     props.getProperty('WHATSAPP_STATUS_COLUMN_NAME') || DEFAULT_WHATSAPP_STATUS_COLUMN_NAME;
   const startRow = Number(props.getProperty('START_ROW') || '2');
+  console.log(`syncNewLeads started at ${new Date().toISOString()}`);
 
   if (!webhookUrl || !webhookSecret) {
     throw new Error('Set WEBHOOK_URL and WEBHOOK_SECRET in Script properties first.');
   }
 
   if (!isWithinWorkingHours_(props)) {
+    console.log(describeWorkingHours_(props));
     return;
   }
 
-  if (!canSendNow_(props)) {
+  const queueWaitMs = getQueueWaitMs_(props);
+  if (queueWaitMs > 0) {
+    console.log(`Queue pause active. Next send in about ${Math.ceil(queueWaitMs / 1000)} seconds.`);
     return;
   }
 
@@ -115,6 +120,7 @@ function syncNewLeadsLocked_() {
 
   const lastRow = sheet.getLastRow();
   if (lastRow < startRow) {
+    console.log(`No rows to process. lastRow=${lastRow}, startRow=${startRow}.`);
     return;
   }
 
@@ -168,18 +174,24 @@ function syncNewLeadsLocked_() {
     };
 
     if (telegramPending) {
+      console.log(`Sending Telegram webhook for row ${row}.`);
       const result = postLead_(webhookUrl, webhookSecret, payload);
       sheet.getRange(row, statusColumn).setValue(result.statusText);
       markMessageSent_(props);
+      console.log(`Telegram result for row ${row}: ${result.statusText}`);
       return;
     }
     if (whatsappPending) {
+      console.log(`Sending WhatsApp webhook for row ${row}.`);
       const result = postLead_(whatsappWebhookUrl, webhookSecret, payload);
       sheet.getRange(row, whatsappStatusColumn).setValue(result.statusText);
       markMessageSent_(props);
+      console.log(`WhatsApp result for row ${row}: ${result.statusText}`);
       return;
     }
   }
+
+  console.log('No pending leads found. Check that status cells are empty for rows you want to send.');
 }
 
 function postLead_(webhookUrl, webhookSecret, payload) {
@@ -237,6 +249,21 @@ function isWithinWorkingHours_(props) {
   return currentHour >= startHour || currentHour < endHour;
 }
 
+function describeWorkingHours_(props) {
+  const timezone =
+    props.getProperty('WORKING_HOURS_TIMEZONE') || DEFAULT_WORKING_HOURS_TIMEZONE;
+  const startHour = parseHour_(
+    props.getProperty('WORKING_HOURS_START_HOUR'),
+    DEFAULT_WORKING_HOURS_START_HOUR
+  );
+  const endHour = parseHour_(
+    props.getProperty('WORKING_HOURS_END_HOUR'),
+    DEFAULT_WORKING_HOURS_END_HOUR
+  );
+  const currentTime = Utilities.formatDate(new Date(), timezone, 'yyyy-MM-dd HH:mm:ss');
+  return `Outside working hours. Now=${currentTime} ${timezone}, window=${startHour}:00-${endHour}:00.`;
+}
+
 function parseHour_(value, fallback) {
   const hour = Number(value || fallback);
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) {
@@ -245,22 +272,23 @@ function parseHour_(value, fallback) {
   return Math.floor(hour);
 }
 
-function canSendNow_(props) {
+function getQueueWaitMs_(props) {
   const intervalMinutes = parsePositiveNumber_(
     props.getProperty('SEND_INTERVAL_MINUTES'),
     DEFAULT_SEND_INTERVAL_MINUTES
   );
   const lastSentAt = props.getProperty(LAST_MESSAGE_SENT_AT_PROPERTY);
   if (!lastSentAt) {
-    return true;
+    return 0;
   }
 
   const lastSentTime = Date.parse(lastSentAt);
   if (!Number.isFinite(lastSentTime)) {
-    return true;
+    return 0;
   }
 
-  return Date.now() - lastSentTime >= intervalMinutes * 60 * 1000;
+  const waitMs = intervalMinutes * 60 * 1000 - (Date.now() - lastSentTime);
+  return Math.max(0, waitMs);
 }
 
 function markMessageSent_(props) {

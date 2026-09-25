@@ -100,9 +100,14 @@ app.post("/send", authorize, async (request, response) => {
       return client.sendMessage(numberId._serialized, message);
     });
 
+    const messageId = result?.id?._serialized || null;
+    if (!messageId) {
+      console.warn("WhatsApp send returned no message id.");
+    }
+
     return response.json({
       status: "sent",
-      message_id: result.id?._serialized || null,
+      message_id: messageId,
     });
   } catch (error) {
     if (error.code === "NOT_FOUND") {
