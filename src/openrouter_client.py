@@ -44,37 +44,99 @@ class OpenRouterClient:
         if self.settings.openrouter_app_title:
             headers["X-OpenRouter-Title"] = self.settings.openrouter_app_title
 
-        response = await self.client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json={
-                "model": self.settings.openrouter_model,
-                "temperature": self.settings.openrouter_temperature,
-                "max_tokens": self.settings.openrouter_max_tokens,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            system_prompt
-                            if system_prompt is not None
-                            else self.settings.openrouter_system_prompt
-                        ),
-                    },
-                    {"role": "user", "content": rendered_user_prompt},
-                ],
-            },
+        system_content = (
+            system_prompt
+            if system_prompt is not None
+            else self.settings.openrouter_system_prompt
         )
-        response.raise_for_status()
-        data = response.json()
-        try:
-            message = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError(f"Unexpected OpenRouter response: {data}") from exc
+        last_error: RuntimeError | None = None
 
-        message = str(message).strip()
-        if not message:
+        for attempt in range(5):
+            user_content = rendered_user_prompt
+            if attempt:
+                user_content += (
+                    "\n\nReturn exactly one complete ready-to-send message. "
+                    "Do not return null, None, drafts, fragments, or explanations."
+                )
+
+            response = await self.client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json={
+                    "model": self.settings.openrouter_model,
+                    "temperature": self.settings.openrouter_temperature,
+                    "max_tokens": self.settings.openrouter_max_tokens,
+                    "messages": [
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": user_content},
+                    ],
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            try:
+                choice = data["choices"][0]
+                message = choice["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise RuntimeError(f"Unexpected OpenRouter response: {data}") from exc
+
+            try:
+                return self._clean_generated_message(message, choice.get("finish_reason"))
+            except RuntimeError as exc:
+                last_error = exc
+
+        raise last_error or RuntimeError("OpenRouter returned an invalid message.")
+
+    def _clean_generated_message(self, message: Any, finish_reason: Any) -> str:
+        if finish_reason == "length":
+            raise RuntimeError(
+                "OpenRouter stopped because max_tokens was reached; message was not sent."
+            )
+        if message is None:
+            raise RuntimeError("OpenRouter returned null instead of a message.")
+        if not isinstance(message, str):
+            raise RuntimeError(f"OpenRouter returned non-text message content: {message!r}")
+
+        clean = message.strip()
+        if not clean:
             raise RuntimeError("OpenRouter returned an empty message.")
-        return message
+        if clean.lower() in {"none", "null", "undefined"}:
+            raise RuntimeError(f"OpenRouter returned placeholder text: {clean!r}")
+        if self._looks_incomplete(clean):
+            raise RuntimeError(f"OpenRouter returned an incomplete message: {clean!r}")
+        return clean
+
+    def _looks_incomplete(self, message: str) -> bool:
+        words = message.split()
+        if len(words) < 4:
+            return True
+        if message[-1] in ".!?)]}\"'»":
+            return False
+        last_word = words[-1].strip(" ,;:").lower()
+        dangling_words = {
+            "i",
+            "i'm",
+            "im",
+            "я",
+            "мы",
+            "вы",
+            "и",
+            "а",
+            "но",
+            "что",
+            "как",
+            "для",
+            "по",
+            "с",
+            "в",
+            "на",
+            "у",
+            "о",
+            "к",
+            "от",
+            "за",
+        }
+        return last_word in dangling_words
 
     def _render_prompt(
         self,

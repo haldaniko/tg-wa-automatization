@@ -97,13 +97,18 @@ app.post("/send", authorize, async (request, response) => {
         error.code = "NOT_FOUND";
         throw error;
       }
-      return client.sendMessage(numberId._serialized, message);
+      console.log(
+        `Sending WhatsApp message to ${numberId._serialized}. Message length: ${message.length}.`
+      );
+      const chat = await client.getChatById(numberId._serialized);
+      return chat.sendMessage(message);
     });
 
     const messageId = result?.id?._serialized || null;
     if (!messageId) {
-      console.warn("WhatsApp send returned no message id.");
+      throw new Error("WhatsApp send returned no message confirmation.");
     }
+    console.log(`WhatsApp message sent to ${phone}. Message id: ${messageId}.`);
 
     return response.json({
       status: "sent",
@@ -114,7 +119,7 @@ app.post("/send", authorize, async (request, response) => {
       return response.status(404).json({ detail: error.message });
     }
     console.error("WhatsApp send failed:", error);
-    return response.status(500).json({ detail: "WhatsApp send failed." });
+    return response.status(500).json({ detail: error.message || "WhatsApp send failed." });
   }
 });
 

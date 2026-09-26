@@ -3,6 +3,8 @@ const DEFAULT_WHATSAPP_STATUS_COLUMN_NAME = 'WhatsApp status';
 const DEFAULT_WORKING_HOURS_TIMEZONE = 'Europe/Sofia';
 const DEFAULT_WORKING_HOURS_START_HOUR = 8;
 const DEFAULT_WORKING_HOURS_END_HOUR = 18;
+const DEFAULT_WEEKEND_WORKING_HOURS_START_HOUR = 11;
+const DEFAULT_WEEKEND_WORKING_HOURS_END_HOUR = 21;
 const DEFAULT_SEND_INTERVAL_MINUTES = 3;
 const LAST_MESSAGE_SENT_AT_PROPERTY = 'LAST_MESSAGE_SENT_AT';
 
@@ -228,17 +230,10 @@ function ensureStatusColumn_(sheet, headers, statusColumnName) {
 }
 
 function isWithinWorkingHours_(props) {
-  const timezone =
-    props.getProperty('WORKING_HOURS_TIMEZONE') || DEFAULT_WORKING_HOURS_TIMEZONE;
-  const startHour = parseHour_(
-    props.getProperty('WORKING_HOURS_START_HOUR'),
-    DEFAULT_WORKING_HOURS_START_HOUR
-  );
-  const endHour = parseHour_(
-    props.getProperty('WORKING_HOURS_END_HOUR'),
-    DEFAULT_WORKING_HOURS_END_HOUR
-  );
-  const currentHour = Number(Utilities.formatDate(new Date(), timezone, 'H'));
+  const window = getWorkingHoursWindow_(props);
+  const startHour = window.startHour;
+  const endHour = window.endHour;
+  const currentHour = Number(Utilities.formatDate(new Date(), window.timezone, 'H'));
 
   if (startHour === endHour) {
     return true;
@@ -250,18 +245,44 @@ function isWithinWorkingHours_(props) {
 }
 
 function describeWorkingHours_(props) {
+  const window = getWorkingHoursWindow_(props);
+  const currentTime = Utilities.formatDate(new Date(), window.timezone, 'yyyy-MM-dd HH:mm:ss');
+  const dayType = window.isWeekend ? 'weekend' : 'weekday';
+  return `Outside working hours. Now=${currentTime} ${window.timezone}, ${dayType} window=${window.startHour}:00-${window.endHour}:00.`;
+}
+
+function getWorkingHoursWindow_(props) {
   const timezone =
     props.getProperty('WORKING_HOURS_TIMEZONE') || DEFAULT_WORKING_HOURS_TIMEZONE;
-  const startHour = parseHour_(
-    props.getProperty('WORKING_HOURS_START_HOUR'),
-    DEFAULT_WORKING_HOURS_START_HOUR
-  );
-  const endHour = parseHour_(
-    props.getProperty('WORKING_HOURS_END_HOUR'),
-    DEFAULT_WORKING_HOURS_END_HOUR
-  );
-  const currentTime = Utilities.formatDate(new Date(), timezone, 'yyyy-MM-dd HH:mm:ss');
-  return `Outside working hours. Now=${currentTime} ${timezone}, window=${startHour}:00-${endHour}:00.`;
+  const dayOfWeek = Number(Utilities.formatDate(new Date(), timezone, 'u'));
+  const isWeekend = dayOfWeek === 6 || dayOfWeek === 7;
+  if (isWeekend) {
+    return {
+      timezone: timezone,
+      isWeekend: true,
+      startHour: parseHour_(
+        props.getProperty('WEEKEND_WORKING_HOURS_START_HOUR'),
+        DEFAULT_WEEKEND_WORKING_HOURS_START_HOUR
+      ),
+      endHour: parseHour_(
+        props.getProperty('WEEKEND_WORKING_HOURS_END_HOUR'),
+        DEFAULT_WEEKEND_WORKING_HOURS_END_HOUR
+      ),
+    };
+  }
+
+  return {
+    timezone: timezone,
+    isWeekend: false,
+    startHour: parseHour_(
+      props.getProperty('WORKING_HOURS_START_HOUR'),
+      DEFAULT_WORKING_HOURS_START_HOUR
+    ),
+    endHour: parseHour_(
+      props.getProperty('WORKING_HOURS_END_HOUR'),
+      DEFAULT_WORKING_HOURS_END_HOUR
+    ),
+  };
 }
 
 function parseHour_(value, fallback) {
