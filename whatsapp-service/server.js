@@ -118,8 +118,9 @@ app.post("/send", authorize, async (request, response) => {
     if (error.code === "NOT_FOUND") {
       return response.status(404).json({ detail: error.message });
     }
-    console.error("WhatsApp send failed:", error);
-    return response.status(500).json({ detail: error.message || "WhatsApp send failed." });
+    const detail = formatSendError(error);
+    console.error("WhatsApp send failed:", serializeError(error));
+    return response.status(500).json({ detail });
   }
 });
 
@@ -142,6 +143,32 @@ function enqueueSend(operation) {
   const current = sendQueue.then(operation, operation);
   sendQueue = current.catch(() => undefined);
   return current;
+}
+
+function formatSendError(error) {
+  const message = String(error?.message || error || "").trim();
+  if (message.length > 1) {
+    return message;
+  }
+
+  const code = error?.code ? ` Code: ${error.code}.` : "";
+  return (
+    `WhatsApp Web rejected the send request with an internal error${message ? `: ${message}` : "."}` +
+    `${code} Restart the whatsapp service; if it does not recover, re-link WhatsApp by recreating the whatsapp_sessions volume and scanning a new QR code.`
+  );
+}
+
+function serializeError(error) {
+  if (!error || typeof error !== "object") {
+    return error;
+  }
+
+  return {
+    name: error.name,
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+  };
 }
 
 function removeChromiumProfileLocks(rootPath) {

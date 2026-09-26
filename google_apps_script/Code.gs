@@ -3,8 +3,8 @@ const DEFAULT_WHATSAPP_STATUS_COLUMN_NAME = 'WhatsApp status';
 const DEFAULT_WORKING_HOURS_TIMEZONE = 'Europe/Sofia';
 const DEFAULT_WORKING_HOURS_START_HOUR = 8;
 const DEFAULT_WORKING_HOURS_END_HOUR = 18;
-const DEFAULT_WEEKEND_WORKING_HOURS_START_HOUR = 11;
-const DEFAULT_WEEKEND_WORKING_HOURS_END_HOUR = 21;
+const WEEKEND_WORKING_HOURS_START_HOUR = 11;
+const WEEKEND_WORKING_HOURS_END_HOUR = 21;
 const DEFAULT_SEND_INTERVAL_MINUTES = 3;
 const LAST_MESSAGE_SENT_AT_PROPERTY = 'LAST_MESSAGE_SENT_AT';
 
@@ -260,14 +260,8 @@ function getWorkingHoursWindow_(props) {
     return {
       timezone: timezone,
       isWeekend: true,
-      startHour: parseHour_(
-        props.getProperty('WEEKEND_WORKING_HOURS_START_HOUR'),
-        DEFAULT_WEEKEND_WORKING_HOURS_START_HOUR
-      ),
-      endHour: parseHour_(
-        props.getProperty('WEEKEND_WORKING_HOURS_END_HOUR'),
-        DEFAULT_WEEKEND_WORKING_HOURS_END_HOUR
-      ),
+      startHour: parseHour_(WEEKEND_WORKING_HOURS_START_HOUR, 11),
+      endHour: parseHour_(WEEKEND_WORKING_HOURS_END_HOUR, 21),
     };
   }
 
