@@ -100,8 +100,7 @@ app.post("/send", authorize, async (request, response) => {
       console.log(
         `Sending WhatsApp message to ${numberId._serialized}. Message length: ${message.length}.`
       );
-      const chat = await client.getChatById(numberId._serialized);
-      return chat.sendMessage(message);
+      return client.sendMessage(numberId._serialized, message);
     });
 
     const messageId = result?.id?._serialized || null;
