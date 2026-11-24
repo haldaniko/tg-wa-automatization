@@ -97,6 +97,10 @@ class WhatsAppWebhookTest(unittest.TestCase):
         self.assertEqual(anton_account.json()["status"], "dry_run")
         self.assertEqual(anton_duplicate.json()["status"], "duplicate")
         self.assertEqual(generate_message.await_count, 2)
+        self.assertEqual(
+            generate_message.await_args.kwargs["user_prompt"],
+            main.services.settings.openrouter_anton_whatsapp_user_prompt,
+        )
 
 
 if __name__ == "__main__":

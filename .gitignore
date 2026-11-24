@@ -7,5 +7,6 @@ venv/
 data/
 sessions/
 whatsapp-service/.wwebjs_auth/
+whatsapp-service/node_modules/
 *.session
 *.session-journal

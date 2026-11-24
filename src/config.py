@@ -48,6 +48,8 @@ class Settings:
     openrouter_user_prompt: str
     openrouter_whatsapp_system_prompt: str
     openrouter_whatsapp_user_prompt: str
+    openrouter_anton_whatsapp_system_prompt: str
+    openrouter_anton_whatsapp_user_prompt: str
 
 
 def load_settings() -> Settings:
@@ -60,6 +62,15 @@ def load_settings() -> Settings:
     openrouter_user_prompt = os.getenv(
         "OPENROUTER_USER_PROMPT",
         "Create a short greeting for this lead: {lead_json}",
+    ).strip()
+
+    openrouter_whatsapp_system_prompt = os.getenv(
+        "OPENROUTER_WHATSAPP_SYSTEM_PROMPT",
+        openrouter_system_prompt,
+    ).strip()
+    openrouter_whatsapp_user_prompt = os.getenv(
+        "OPENROUTER_WHATSAPP_USER_PROMPT",
+        openrouter_user_prompt,
     ).strip()
 
     return Settings(
@@ -92,12 +103,14 @@ def load_settings() -> Settings:
         openrouter_app_title=os.getenv("OPENROUTER_APP_TITLE", "Lead Messenger Bot").strip(),
         openrouter_system_prompt=openrouter_system_prompt,
         openrouter_user_prompt=openrouter_user_prompt,
-        openrouter_whatsapp_system_prompt=os.getenv(
-            "OPENROUTER_WHATSAPP_SYSTEM_PROMPT",
-            openrouter_system_prompt,
+        openrouter_whatsapp_system_prompt=openrouter_whatsapp_system_prompt,
+        openrouter_whatsapp_user_prompt=openrouter_whatsapp_user_prompt,
+        openrouter_anton_whatsapp_system_prompt=os.getenv(
+            "OPENROUTER_ANTON_WHATSAPP_SYSTEM_PROMPT",
+            openrouter_whatsapp_system_prompt,
         ).strip(),
-        openrouter_whatsapp_user_prompt=os.getenv(
-            "OPENROUTER_WHATSAPP_USER_PROMPT",
-            openrouter_user_prompt,
+        openrouter_anton_whatsapp_user_prompt=os.getenv(
+            "OPENROUTER_ANTON_WHATSAPP_USER_PROMPT",
+            openrouter_whatsapp_user_prompt,
         ).strip(),
     )

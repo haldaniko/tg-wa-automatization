@@ -131,6 +131,8 @@ async def google_sheets_whatsapp_webhook(request: Request) -> dict[str, Any]:
         request,
         sender=services.whatsapp,
         storage_prefix="whatsapp",
+        system_prompt=services.settings.openrouter_whatsapp_system_prompt,
+        user_prompt=services.settings.openrouter_whatsapp_user_prompt,
     )
 
 
@@ -140,6 +142,8 @@ async def google_sheets_anton_whatsapp_webhook(request: Request) -> dict[str, An
         request,
         sender=services.whatsapp_anton,
         storage_prefix="whatsapp-anton",
+        system_prompt=services.settings.openrouter_anton_whatsapp_system_prompt,
+        user_prompt=services.settings.openrouter_anton_whatsapp_user_prompt,
     )
 
 
@@ -148,6 +152,8 @@ async def _send_whatsapp_webhook(
     *,
     sender: WhatsAppSender,
     storage_prefix: str,
+    system_prompt: str,
+    user_prompt: str,
 ) -> dict[str, Any]:
     settings = services.settings
     payload, lead, row_key, phone = await _parse_lead_request(request)
@@ -174,8 +180,8 @@ async def _send_whatsapp_webhook(
             lead,
             payload,
             phone,
-            system_prompt=settings.openrouter_whatsapp_system_prompt,
-            user_prompt=settings.openrouter_whatsapp_user_prompt,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
         )
         if settings.dry_run:
             whatsapp_message_id = None

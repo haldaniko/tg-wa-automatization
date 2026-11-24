@@ -37,6 +37,8 @@ def _settings() -> Settings:
         openrouter_user_prompt="Lead: {lead_json}",
         openrouter_whatsapp_system_prompt="Write a WhatsApp message.",
         openrouter_whatsapp_user_prompt="Lead: {lead_json}",
+        openrouter_anton_whatsapp_system_prompt="Write an Anton WhatsApp message.",
+        openrouter_anton_whatsapp_user_prompt="Anton lead: {lead_json}",
     )
 
 
