@@ -21,22 +21,33 @@ class WhatsAppNotReadyError(RuntimeError):
 
 
 class WhatsAppSender:
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        service_url: str | None = None,
+        api_token: str | None = None,
+        account_name: str = "WhatsApp",
+    ) -> None:
+        self.service_url = service_url or settings.whatsapp_service_url
+        self.api_token = (
+            settings.whatsapp_api_token if api_token is None else api_token
+        )
+        self.account_name = account_name
         self.client = httpx.AsyncClient(timeout=60)
 
     async def close(self) -> None:
         await self.client.aclose()
 
     async def send_to_phone(self, phone: str, message: str) -> WhatsAppSendResult:
-        if not self.settings.whatsapp_api_token:
+        if not self.api_token:
             raise WhatsAppNotReadyError(
-                "WhatsApp is not configured. Set WHATSAPP_API_TOKEN first."
+                f"{self.account_name} is not configured. Set its API token first."
             )
 
         response = await self.client.post(
-            f"{self.settings.whatsapp_service_url}/send",
-            headers={"Authorization": f"Bearer {self.settings.whatsapp_api_token}"},
+            f"{self.service_url}/send",
+            headers={"Authorization": f"Bearer {self.api_token}"},
             json={"phone": phone, "message": message},
         )
         if response.status_code == 404:

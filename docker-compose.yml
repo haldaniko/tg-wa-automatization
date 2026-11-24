@@ -60,7 +60,39 @@ services:
       retries: 3
       start_period: 20s
 
+  whatsapp-anton:
+    build:
+      context: ./whatsapp-service
+      dockerfile: Dockerfile
+    image: tg-wa-automatization-whatsapp:prod
+    init: true
+    restart: unless-stopped
+    profiles:
+      - anton
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      WHATSAPP_API_TOKEN: ${ANTON_WHATSAPP_API_TOKEN}
+      WHATSAPP_CLIENT_ID: anton
+      WHATSAPP_SESSION_PATH: /app/session
+    volumes:
+      - whatsapp_anton_sessions:/app/session
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
 volumes:
   lead_data:
   telegram_sessions:
   whatsapp_sessions:
+  whatsapp_anton_sessions:

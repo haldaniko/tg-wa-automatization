@@ -25,6 +25,7 @@ class Services:
     openrouter: OpenRouterClient
     telegram: TelegramSender
     whatsapp: WhatsAppSender
+    whatsapp_anton: WhatsAppSender
 
 
 services = Services()
@@ -38,11 +39,18 @@ async def lifespan(app: FastAPI):
     services.openrouter = OpenRouterClient(services.settings)
     services.telegram = TelegramSender(services.settings)
     services.whatsapp = WhatsAppSender(services.settings)
+    services.whatsapp_anton = WhatsAppSender(
+        services.settings,
+        service_url=services.settings.anton_whatsapp_service_url,
+        api_token=services.settings.anton_whatsapp_api_token,
+        account_name="Anton WhatsApp",
+    )
     if not services.settings.dry_run:
         await services.telegram.connect()
     yield
     await services.openrouter.close()
     await services.whatsapp.close()
+    await services.whatsapp_anton.close()
     if not services.settings.dry_run:
         await services.telegram.disconnect()
 
@@ -119,9 +127,31 @@ async def google_sheets_webhook(request: Request) -> dict[str, Any]:
 
 @app.post("/webhooks/google-sheets/whatsapp")
 async def google_sheets_whatsapp_webhook(request: Request) -> dict[str, Any]:
+    return await _send_whatsapp_webhook(
+        request,
+        sender=services.whatsapp,
+        storage_prefix="whatsapp",
+    )
+
+
+@app.post("/webhooks/google-sheets/whatsapp/anton")
+async def google_sheets_anton_whatsapp_webhook(request: Request) -> dict[str, Any]:
+    return await _send_whatsapp_webhook(
+        request,
+        sender=services.whatsapp_anton,
+        storage_prefix="whatsapp-anton",
+    )
+
+
+async def _send_whatsapp_webhook(
+    request: Request,
+    *,
+    sender: WhatsAppSender,
+    storage_prefix: str,
+) -> dict[str, Any]:
     settings = services.settings
     payload, lead, row_key, phone = await _parse_lead_request(request)
-    storage_key = f"whatsapp:{row_key}"
+    storage_key = f"{storage_prefix}:{row_key}"
 
     claim_status = services.storage.claim(storage_key, phone)
     if claim_status == "sent":
@@ -150,7 +180,7 @@ async def google_sheets_whatsapp_webhook(request: Request) -> dict[str, Any]:
         if settings.dry_run:
             whatsapp_message_id = None
         else:
-            result = await services.whatsapp.send_to_phone(phone, message)
+            result = await sender.send_to_phone(phone, message)
             whatsapp_message_id = result.message_id
 
         services.storage.mark_whatsapp_sent(

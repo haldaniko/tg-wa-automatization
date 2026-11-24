@@ -25,6 +25,8 @@ def _settings() -> Settings:
         telegram_delete_imported_contact=False,
         whatsapp_service_url="http://whatsapp:3000",
         whatsapp_api_token="token",
+        anton_whatsapp_service_url="http://whatsapp-anton:3000",
+        anton_whatsapp_api_token="anton-token",
         openrouter_api_key="key",
         openrouter_model="test-model",
         openrouter_temperature=0.7,

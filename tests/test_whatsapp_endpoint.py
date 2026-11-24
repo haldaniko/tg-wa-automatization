@@ -60,6 +60,44 @@ class WhatsAppWebhookTest(unittest.TestCase):
             main.services.settings.openrouter_whatsapp_user_prompt,
         )
 
+    def test_anton_dry_run_has_independent_deduplication_key(self) -> None:
+        payload = {
+            "spreadsheetId": "sheet-1",
+            "sheetName": "антон таргет 19/10 ",
+            "rowNumber": 2,
+            "lead": {"phone": "+380972964484", "name": "Anton test"},
+        }
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+            os.environ["DATABASE_PATH"] = str(Path(temp_dir) / "leads.sqlite3")
+            generate_message = AsyncMock(return_value="Anton WhatsApp test message")
+            with patch.object(
+                main.OpenRouterClient,
+                "generate_message",
+                new=generate_message,
+            ):
+                with TestClient(main.app) as client:
+                    old_account = client.post(
+                        "/webhooks/google-sheets/whatsapp",
+                        json=payload,
+                        headers={"X-Webhook-Secret": "test-secret"},
+                    )
+                    anton_account = client.post(
+                        "/webhooks/google-sheets/whatsapp/anton",
+                        json=payload,
+                        headers={"X-Webhook-Secret": "test-secret"},
+                    )
+                    anton_duplicate = client.post(
+                        "/webhooks/google-sheets/whatsapp/anton",
+                        json=payload,
+                        headers={"X-Webhook-Secret": "test-secret"},
+                    )
+
+        self.assertEqual(old_account.json()["status"], "dry_run")
+        self.assertEqual(anton_account.json()["status"], "dry_run")
+        self.assertEqual(anton_duplicate.json()["status"], "duplicate")
+        self.assertEqual(generate_message.await_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

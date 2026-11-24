@@ -36,6 +36,8 @@ class Settings:
     telegram_delete_imported_contact: bool
     whatsapp_service_url: str
     whatsapp_api_token: str
+    anton_whatsapp_service_url: str
+    anton_whatsapp_api_token: str
     openrouter_api_key: str
     openrouter_model: str
     openrouter_temperature: float
@@ -76,6 +78,12 @@ def load_settings() -> Settings:
             "WHATSAPP_SERVICE_URL", "http://whatsapp:3000"
         ).strip().rstrip("/"),
         whatsapp_api_token=os.getenv("WHATSAPP_API_TOKEN", "").strip(),
+        anton_whatsapp_service_url=os.getenv(
+            "ANTON_WHATSAPP_SERVICE_URL", "http://whatsapp-anton:3000"
+        ).strip().rstrip("/"),
+        anton_whatsapp_api_token=os.getenv(
+            "ANTON_WHATSAPP_API_TOKEN", ""
+        ).strip(),
         openrouter_api_key=_required("OPENROUTER_API_KEY"),
         openrouter_model=os.getenv("OPENROUTER_MODEL", "~openai/gpt-sol-latest").strip(),
         openrouter_temperature=float(os.getenv("OPENROUTER_TEMPERATURE", "0.7")),
