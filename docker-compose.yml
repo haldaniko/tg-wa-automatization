@@ -45,6 +45,7 @@ services:
     environment:
       PORT: 3000
       WHATSAPP_SESSION_PATH: /app/session
+      WHATSAPP_AUTH_TIMEOUT_MS: ${WHATSAPP_AUTH_TIMEOUT_MS:-120000}
     volumes:
       - whatsapp_sessions:/app/session
     healthcheck:
@@ -76,6 +77,7 @@ services:
       WHATSAPP_API_TOKEN: ${ANTON_WHATSAPP_API_TOKEN}
       WHATSAPP_CLIENT_ID: anton
       WHATSAPP_SESSION_PATH: /app/session
+      WHATSAPP_AUTH_TIMEOUT_MS: ${WHATSAPP_AUTH_TIMEOUT_MS:-120000}
     volumes:
       - whatsapp_anton_sessions:/app/session
     healthcheck:

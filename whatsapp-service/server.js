@@ -11,6 +11,7 @@ const port = Number(process.env.PORT || "3000");
 const apiToken = process.env.WHATSAPP_API_TOKEN || "";
 const clientId = process.env.WHATSAPP_CLIENT_ID || "leads";
 const sessionPath = process.env.WHATSAPP_SESSION_PATH || "/app/session";
+const authTimeoutMs = Number(process.env.WHATSAPP_AUTH_TIMEOUT_MS || "120000");
 
 if (!apiToken) {
   throw new Error("WHATSAPP_API_TOKEN is required.");
@@ -23,6 +24,7 @@ let sendQueue = Promise.resolve();
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId, dataPath: sessionPath }),
+  authTimeoutMs,
   puppeteer: {
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
     headless: "new",
